@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../auth.jsx';
 
 export const NAV = [
@@ -20,13 +20,21 @@ export default function Layout() {
   const { admin, adapter, can, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
+  // On small screens the sidebar is off-canvas; keep it out of the tab order when closed.
+  const [mobile, setMobile] = useState(() => window.matchMedia('(max-width: 860px)').matches);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 860px)');
+    const on = () => setMobile(mq.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
   const signOut = async () => {
     await logout();
     navigate('/', { replace: true });
   };
   return (
     <div className={`shell ${open ? 'nav-open' : ''}`}>
-      <aside className="sidebar">
+      <aside className="sidebar" id="sidebar" inert={mobile && !open ? '' : undefined}>
         <div className="brand">
           <span className="brand-icon">🐾</span>
           <div>
@@ -55,7 +63,7 @@ export default function Layout() {
       </aside>
       <div className="main">
         <header className="topbar">
-          <button className="btn-icon menu-btn" onClick={() => setOpen(!open)} aria-label="Menu">☰</button>
+          <button className="btn-icon menu-btn" onClick={() => setOpen(!open)} aria-label="Menu" aria-expanded={open} aria-controls="sidebar">☰</button>
           {adapter === 'mock' && (
             <div className="mock-banner">MOCK DATA: not connected to the live game. See README → "Connecting the real game".</div>
           )}

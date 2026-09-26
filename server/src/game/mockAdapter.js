@@ -169,11 +169,17 @@ const db = store.data;
 const save = () => store.save();
 
 // ---- helpers ----
-const isActive = (x) => x && (x.until === null || new Date(x.until) > new Date());
+const isActive = (x) => Boolean(x) && (x.until == null || new Date(x.until) > new Date());
 function withStatus(p) {
   const banned = isActive(p.ban);
   const muted = isActive(p.mute);
   return { ...p, banned, muted, online: p.online && !banned };
+}
+const notFound = (what) => Object.assign(new Error(`${what} not found`), { status: 404 });
+function removeById(list, id, what) {
+  const i = list.findIndex((x) => x.id === id);
+  if (i < 0) throw notFound(what);
+  list.splice(i, 1);
 }
 function findPlayer(id) {
   const p = db.players.find((x) => x.id === id);
@@ -225,9 +231,9 @@ export const mockAdapter = {
 
   // Players
   async listPlayers({ q = '', status = 'all', species = '', page, pageSize }) {
-    const needle = q.trim().toLowerCase();
+    const needle = q.toLowerCase();
     let list = db.players.map(withStatus).filter((p) => {
-      if (needle && !p.username.toLowerCase().includes(needle) && p.id !== needle) return false;
+      if (needle && !p.username.toLowerCase().includes(needle) && p.id.toLowerCase() !== needle) return false;
       if (species && p.species !== species) return false;
       if (status === 'online' && !p.online) return false;
       if (status === 'banned' && !p.banned) return false;
@@ -267,7 +273,7 @@ export const mockAdapter = {
     findPlayer(id).mute = null;
     save();
   },
-  async kickPlayer(id) {
+  async kickPlayer(id, { reason, by } = {}) { // reason is shown to the player in game
     const p = findPlayer(id);
     if (!p.online) throw Object.assign(new Error('Player is not online'), { status: 409 });
     p.online = false;
@@ -306,7 +312,7 @@ export const mockAdapter = {
 
   // Chat
   async searchChat({ q = '', serverId = '', channel = '', page, pageSize }) {
-    const needle = q.trim().toLowerCase();
+    const needle = q.toLowerCase();
     const list = db.chat.filter(
       (c) =>
         (!needle || c.message.toLowerCase().includes(needle) || c.username.toLowerCase().includes(needle)) &&
@@ -320,17 +326,21 @@ export const mockAdapter = {
   async listSkins() {
     return SKINS;
   },
-  async adjustCurrency(id, { currency, amount, reason, by }) {
+  async adjustCurrency(id, { currency, amount, reason, by, requestId }) {
+    const dup = requestId && db.transactions.find((t) => t.requestId === requestId);
+    if (dup) return dup;
     const p = findPlayer(id);
     if (!['gems', 'coins'].includes(currency)) throw Object.assign(new Error('Unknown currency'), { status: 400 });
     const before = p[currency];
     p[currency] = Math.max(0, before + amount);
-    const tx = { id: newId('tx'), playerId: id, username: p.username, type: currency, amount: p[currency] - before, balance: p[currency], reason, by, at: new Date().toISOString() };
+    const tx = { id: newId('tx'), playerId: id, username: p.username, type: currency, amount: p[currency] - before, balance: p[currency], reason, by, requestId, at: new Date().toISOString() };
     db.transactions.unshift(tx);
     save();
     return tx;
   },
-  async setSkin(id, { skinId, give, reason, by }) {
+  async setSkin(id, { skinId, give, reason, by, requestId }) {
+    const dup = requestId && db.transactions.find((t) => t.requestId === requestId);
+    if (dup) return dup;
     const p = findPlayer(id);
     const skin = SKINS.find((s) => s.id === skinId);
     if (!skin) throw Object.assign(new Error('Unknown skin'), { status: 400 });
@@ -338,7 +348,7 @@ export const mockAdapter = {
     if (give && has) throw Object.assign(new Error('Player already owns this skin'), { status: 409 });
     if (!give && !has) throw Object.assign(new Error('Player does not own this skin'), { status: 409 });
     p.skins = give ? [...p.skins, skinId] : p.skins.filter((s) => s !== skinId);
-    const tx = { id: newId('tx'), playerId: id, username: p.username, type: 'skin', amount: give ? 1 : -1, item: skin.name, reason, by, at: new Date().toISOString() };
+    const tx = { id: newId('tx'), playerId: id, username: p.username, type: 'skin', amount: give ? 1 : -1, item: skin.name, reason, by, requestId, at: new Date().toISOString() };
     db.transactions.unshift(tx);
     save();
     return tx;
@@ -380,7 +390,7 @@ export const mockAdapter = {
     return item;
   },
   async deleteAnnouncement(id) {
-    db.announcements = db.announcements.filter((a) => a.id !== id);
+    removeById(db.announcements, id, 'Announcement');
     save();
   },
 
@@ -402,7 +412,7 @@ export const mockAdapter = {
     return item;
   },
   async deleteEvent(id) {
-    db.events = db.events.filter((e) => e.id !== id);
+    removeById(db.events, id, 'Event');
     save();
   },
 
@@ -424,7 +434,7 @@ export const mockAdapter = {
     save();
   },
   async deletePromo(id) {
-    db.promos = db.promos.filter((p) => p.id !== id);
+    removeById(db.promos, id, 'Promo');
     save();
   },
 
@@ -437,6 +447,7 @@ export const mockAdapter = {
     save();
   },
   async removeFilterWord(word) {
+    if (!db.filterWords.includes(word)) throw notFound('Word');
     db.filterWords = db.filterWords.filter((w) => w !== word);
     save();
   },

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { api, qs } from '../api.js';
 import { useAuth } from '../auth.jsx';
 import FormModal from '../components/FormModal.jsx';
-import { Badge, Loading, PageHeader, Pagination, useAction, useApi } from '../components/ui.jsx';
+import { Badge, Loading, PageHeader, Pagination, useAction, useApi, useClampPage } from '../components/ui.jsx';
 import { timeAgo } from '../util.js';
 
 const STATUS_KIND = { open: 'amber', resolved: 'green', dismissed: 'neutral' };
@@ -14,6 +14,7 @@ export default function Reports() {
   const [page, setPage] = useState(1);
   const [handling, setHandling] = useState(null);
   const { data, error, reload } = useApi('/reports' + qs({ status, page }));
+  useClampPage(data, setPage);
   const [run] = useAction();
 
   return (

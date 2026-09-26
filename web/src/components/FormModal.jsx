@@ -13,8 +13,15 @@ export default function FormModal({ title, fields, initial = {}, submitLabel = '
   const submit = async (e) => {
     e.preventDefault();
     setBusy(true);
-    const ok = await onSubmit(values);
-    setBusy(false);
+    let ok = false;
+    try {
+      ok = await onSubmit(values);
+    } catch (err) {
+      console.error(err);
+      ok = false;
+    } finally {
+      setBusy(false);
+    }
     if (ok !== false) onClose();
   };
 
@@ -31,7 +38,7 @@ export default function FormModal({ title, fields, initial = {}, submitLabel = '
                 {f.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             ) : (
-              <input type={f.type || 'text'} value={values[f.name]} onChange={(e) => set(f.name, e.target.value)} required={f.required} placeholder={f.placeholder} min={f.min} max={f.max} list={f.list} />
+              <input type={f.type || 'text'} value={values[f.name]} onChange={(e) => set(f.name, e.target.value)} required={f.required} placeholder={f.placeholder} min={f.min} max={f.max} step={f.step} list={f.list} />
             )}
             {f.help && <span className="help">{f.help}</span>}
           </label>

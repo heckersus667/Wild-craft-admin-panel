@@ -22,6 +22,13 @@ const MUTE_DURATIONS = [
   { value: '1440', label: '1 day' },
   { value: '10080', label: '7 days' },
 ];
+// Mirrors the server rule: moderators can only change bans of 7 days or less.
+function modMayTouchBan(ban) {
+  if (!ban || (ban.until != null && new Date(ban.until) <= new Date())) return true;
+  if (ban.until == null) return false;
+  return new Date(ban.until) - Date.now() <= 168 * 3600000;
+}
+
 const REASONS = ['Cheating / hacking', 'Harassment', 'Inappropriate name', 'Spam', 'Scam / fake links', 'Griefing', 'Other'];
 
 export default function PlayerDetail() {
@@ -134,9 +141,10 @@ export default function PlayerDetail() {
               ? <button className="btn" onClick={() => act('unmute', {}, 'Unmuted')}>🔊 Unmute</button>
               : <button className="btn" onClick={() => setModal('mute')}>🔇 Mute</button>}
             {p.online && <button className="btn" onClick={() => setModal('kick')}>👢 Kick</button>}
-            {p.banned
-              ? <button className="btn" onClick={() => act('unban', {}, 'Unbanned')}>✅ Unban</button>
-              : <button className="btn btn-danger" onClick={() => setModal('ban')}>⛔ Ban</button>}
+            {p.banned && (can('players.ban') || modMayTouchBan(p.ban)) && (
+              <button className="btn" onClick={() => act('unban', {}, 'Unbanned')}>✅ Unban</button>
+            )}
+            {!p.banned && <button className="btn btn-danger" onClick={() => setModal('ban')}>⛔ Ban</button>}
             {can('players.ban') && <button className="btn" onClick={() => setModal('rename')}>✏️ Rename</button>}
             {can('economy.grant') && <button className="btn" onClick={() => setModal('currency')}>💎 Currency</button>}
             {can('economy.grant') && <button className="btn" onClick={() => setModal('skin')}>🎨 Skins</button>}
@@ -147,6 +155,7 @@ export default function PlayerDetail() {
       {p.banned && (
         <div className="alert alert-error">
           <b>Banned</b> by {p.ban.by} {timeAgo(p.ban.at)}: {p.ban.reason}. {p.ban.until ? `Ends in ${timeLeft(p.ban.until)}.` : 'Permanent.'}
+          {!can('players.ban') && !modMayTouchBan(p.ban) && ' Only an admin can change this ban.'}
         </div>
       )}
       {p.muted && (

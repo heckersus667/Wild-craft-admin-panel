@@ -6,7 +6,7 @@ Staff web panel for WildCraft: moderate players, handle reports, read chat, mana
 
 ## Run it
 
-Needs Node.js 20+.
+Needs Node.js 20.12 or newer (22 recommended).
 
 ```bash
 npm install
@@ -18,12 +18,26 @@ Open http://localhost:5173. The first time the server starts it prints an **owne
 Production:
 
 ```bash
-cp .env.example .env   # set JWT_SECRET and ADMIN_PASSWORD
+cp .env.example .env   # set JWT_SECRET (required), ADMIN_PASSWORD, TRUST_PROXY
 npm run build
 npm start              # serves panel + API on http://localhost:4000
 ```
 
-Put it behind HTTPS (nginx, Caddy, Cloudflare, etc.). Login cookies are marked `Secure` in production, so plain HTTP will not work.
+Or with Docker (data kept in a volume):
+
+```bash
+docker build -t wildcraft-admin .
+docker run -d --restart unless-stopped -p 4000:4000 --env-file .env -v wildcraft-admin-data:/data wildcraft-admin
+```
+
+Checklist:
+
+- **HTTPS is required.** Login cookies are `Secure` in production, so plain HTTP will not log in. Put it behind Caddy, nginx or Cloudflare, and set `TRUST_PROXY` to the number of proxies in front (e.g. `1`). Leave it `0` if there is no proxy.
+- **The server will not start in production without `JWT_SECRET`** (32+ characters).
+- **Remove `ADMIN_PASSWORD` from `.env`** after the first start.
+- **Run exactly one instance.** Staff accounts and the audit log are JSON files in `DATA_DIR`; two instances would overwrite each other. For multiple instances, move them to a database first.
+- **Back up `DATA_DIR`** (`admins.json`, `audit.json`) regularly, e.g. a nightly copy. The audit log keeps the newest 50,000 entries.
+- Health check: `GET /api/health`.
 
 ## Features
 
@@ -47,9 +61,9 @@ Put it behind HTTPS (nginx, Caddy, Cloudflare, etc.). Login cookies are marked `
 |---|:-:|:-:|:-:|
 | View players, chat, reports | ✅ | ✅ | ✅ |
 | Warn, mute, kick | ✅ | ✅ | ✅ |
-| Ban | up to 7 days | ✅ | ✅ |
-| Rename players, permanent bans | | ✅ | ✅ |
-| Economy, servers, announcements, events, promos, chat filter, audit log | | ✅ | ✅ |
+| Ban and unban (bans up to 7 days) | ✅ | ✅ | ✅ |
+| Longer or permanent bans, rename players | | ✅ | ✅ |
+| Economy, servers, announcements, events, promos, chat filter, audit log (incl. recent actions on the dashboard) | | ✅ | ✅ |
 | Manage staff accounts | | | ✅ |
 
 Permissions are enforced by the server, not just hidden in the UI. Edit them in `server/src/permissions.js`.
@@ -63,7 +77,7 @@ The panel never talks to the game directly. Every game action goes through a sin
 
 Steps for the dev:
 
-1. Open `liveAdapter.js`. Each function has the same name, arguments and return shape as in `mockAdapter.js`. Use the mock as the spec.
+1. Read [`server/src/game/CONTRACT.md`](server/src/game/CONTRACT.md): every function, its arguments, what it must return, error codes, and date/ban rules. `mockAdapter.js` is the working reference.
 2. Replace each `todo(...)` with a call to the real backend (internal HTTP API, database, RPC, whatever WildCraft uses). A few are already written as HTTP examples.
 3. Set in `.env`:
    ```
@@ -75,16 +89,17 @@ Steps for the dev:
 
 Unfinished functions return a clear "not implemented yet" error, so it can be connected one feature at a time.
 
-Throw an error with a `status` property (e.g. `404`, `409`) from an adapter function and the message is shown to staff.
+Throw an error with a `status` property (e.g. `404`, `409`) from an adapter function and the message is shown to staff. Gem, coin and skin grants carry a `requestId` so the game can ignore retried requests instead of granting twice.
 
 ## Security
 
 - Passwords hashed with bcrypt; sessions are signed JWTs in `httpOnly`, `SameSite=Strict` cookies (12h).
-- Changing a password, role or disabling an account logs that person out everywhere.
-- Login lockout after 5 failed attempts per username+IP for 15 minutes.
+- Logging out, changing a password or role, or disabling an account ends that person's sessions everywhere.
+- Login lockout: 5 failed attempts per username+IP, or 20 per username from anywhere, in 15 minutes. Same limit on the current-password check when changing passwords.
+- Logins and failed logins are recorded in the audit log.
 - All write requests require a custom header, blocking cross-site form attacks.
 - There must always be at least one active owner.
-- Panel data (staff accounts, audit log) lives in `server/data/` as JSON. Back it up; keep it out of git (already ignored).
+- Panel data (staff accounts, audit log) lives in `DATA_DIR` (default `server/data/`) as JSON. Back it up; keep it out of git (already ignored).
 
 ## Project layout
 

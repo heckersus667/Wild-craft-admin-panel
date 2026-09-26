@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { qs } from '../api.js';
-import { Badge, Loading, PageHeader, Pagination, useApi } from '../components/ui.jsx';
+import { Badge, Loading, PageHeader, Pagination, useApi, useClampPage } from '../components/ui.jsx';
 import { fmtNum, timeAgo } from '../util.js';
 
 const SPECIES = ['Wolf', 'Fox', 'Arctic Fox', 'Lynx', 'Tiger', 'Bear', 'Deer', 'Raccoon', 'Horse', 'Dragon'];
@@ -24,13 +24,17 @@ export default function Players() {
   const species = params.get('species') || '';
   const page = Number(params.get('page')) || 1;
   const [search, setSearch] = useState(q);
-  const set = (k, v) => {
-    const next = new URLSearchParams(params);
-    v ? next.set(k, v) : next.delete(k);
-    if (k !== 'page') next.delete('page');
-    setParams(next);
-  };
+  useEffect(() => setSearch(q), [q]); // keep the box in sync with back/forward and nav clicks
+  const set = useCallback((k, v) => {
+    setParams((prev) => {
+      const next = new URLSearchParams(prev);
+      v ? next.set(k, v) : next.delete(k);
+      if (k !== 'page') next.delete('page');
+      return next;
+    });
+  }, [setParams]);
   const { data, error } = useApi('/players' + qs({ q, status, species, page }));
+  useClampPage(data, useCallback((p) => set('page', String(p)), [set]));
 
   return (
     <>

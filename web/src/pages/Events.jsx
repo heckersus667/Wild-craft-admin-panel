@@ -27,6 +27,9 @@ export default function Events() {
   const [run] = useAction();
 
   const save = (v) => {
+    if (isNaN(Date.parse(v.startsAt)) || isNaN(Date.parse(v.endsAt))) {
+      return run(() => Promise.reject(new Error('Please enter valid start and end dates')));
+    }
     const body = { ...v, enabled: v.enabled === 'yes', startsAt: new Date(v.startsAt).toISOString(), endsAt: new Date(v.endsAt).toISOString() };
     const req = editing.id ? api(`/events/${editing.id}`, { method: 'PUT', body }) : api('/events', { method: 'POST', body });
     return run(() => req, 'Event saved').then((ok) => (ok && reload(), ok));
@@ -79,7 +82,7 @@ export default function Events() {
           fields={[
             { name: 'name', label: 'Name', required: true },
             { name: 'type', label: 'Type', type: 'select', options: TYPES },
-            { name: 'multiplier', label: 'Multiplier (optional)', type: 'number', help: 'e.g. 2 for double XP, 0.5 for 50% off' },
+            { name: 'multiplier', label: 'Multiplier (optional)', type: 'number', step: 'any', min: 0, max: 10, help: 'e.g. 2 for double XP, 0.5 for 50% off' },
             { name: 'startsAt', label: 'Starts', type: 'datetime-local', required: true },
             { name: 'endsAt', label: 'Ends', type: 'datetime-local', required: true },
             { name: 'description', label: 'Description (optional)', type: 'textarea' },

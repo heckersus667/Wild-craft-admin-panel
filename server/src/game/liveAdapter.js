@@ -1,8 +1,9 @@
 // LIVE game backend: FOR THE WILDCRAFT DEV TO FILL IN.
 //
 // Every function must match the one with the same name in mockAdapter.js
-// (same arguments, same return shape). The panel only talks to the game
-// through these functions, so nothing else needs to change.
+// (same arguments, same return shape). The full contract is in
+// server/src/game/CONTRACT.md. The panel only talks to the game through
+// these functions, so nothing else needs to change.
 //
 // Enable with GAME_ADAPTER=live in .env.
 //
@@ -12,17 +13,38 @@
 const BASE = process.env.GAME_API_URL;
 const KEY = process.env.GAME_API_KEY;
 
-async function call(method, path, body) {
-  if (!BASE) throw new Error('GAME_API_URL is not set');
-  const res = await fetch(BASE + path, {
-    method,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${KEY}` },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+async function call(method, path, body, { idempotencyKey } = {}) {
+  if (!BASE) throw Object.assign(new Error('GAME_API_URL is not set'), { status: 502 });
+  let res;
+  try {
+    res = await fetch(BASE + path, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${KEY}`,
+        // Lets the game backend ignore a retried grant instead of applying it twice.
+        ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch (e) {
+    const timeout = e.name === 'TimeoutError';
+    throw Object.assign(new Error(timeout ? 'Game server did not respond in time' : 'Could not reach the game server'), { status: 502 });
+  }
   if (!res.ok) {
-    const err = new Error(`Game API ${method} ${path} failed: ${res.status}`);
-    err.status = res.status >= 500 ? 502 : res.status;
-    throw err;
+    let msg = '';
+    try {
+      const data = await res.json();
+      msg = data.error || data.message || '';
+    } catch {}
+    // A 401/403 from the GAME means the panel's API key is wrong, not that the
+    // staff member is logged out, so never pass those through as-is.
+    if (res.status === 401 || res.status === 403) {
+      throw Object.assign(new Error('Game API rejected the panel key (check GAME_API_KEY)'), { status: 502 });
+    }
+    const status = res.status >= 500 ? 502 : res.status;
+    throw Object.assign(new Error(msg || `Game server error (${res.status})`), { status });
   }
   return res.status === 204 ? null : res.json();
 }
@@ -53,6 +75,8 @@ export const liveAdapter = {
   updateReport: todo('updateReport'),
   searchChat: todo('searchChat'),
   listSkins: todo('listSkins'),
+  // Example: pass requestId as the idempotency key so retries don't double-grant.
+  // adjustCurrency: (id, body) => call('POST', `/admin/players/${encodeURIComponent(id)}/currency`, body, { idempotencyKey: body.requestId }),
   adjustCurrency: todo('adjustCurrency'),
   setSkin: todo('setSkin'),
   listTransactions: todo('listTransactions'),

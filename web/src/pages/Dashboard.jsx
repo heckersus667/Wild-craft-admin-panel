@@ -4,7 +4,8 @@ import { fmtNum, timeAgo } from '../util.js';
 
 function OnlineChart({ points }) {
   const w = 600, h = 160, pad = 24;
-  const max = Math.max(...points.map((p) => p.online)) * 1.1;
+  if (!points || points.length < 2) return <p className="muted">Not enough data yet.</p>;
+  const max = Math.max(1, ...points.map((p) => p.online)) * 1.1;
   const x = (i) => pad + (i / (points.length - 1)) * (w - pad * 2);
   const y = (v) => h - pad - (v / max) * (h - pad * 2);
   const line = points.map((p, i) => `${i ? 'L' : 'M'}${x(i)},${y(p.online)}`).join(' ');
@@ -33,7 +34,7 @@ export default function Dashboard() {
   const { data, error } = useApi('/dashboard');
   if (!data) return <Loading error={error} />;
   const s = data.stats;
-  const maxSpecies = Math.max(...s.species.map((x) => x.count));
+  const maxSpecies = Math.max(1, ...s.species.map((x) => x.count));
   return (
     <>
       <PageHeader title="Dashboard" />
@@ -62,7 +63,7 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-      <div className="card">
+      {data.recentActions && <div className="card">
         <h2>Recent staff actions</h2>
         {data.recentActions.length === 0 ? (
           <p className="muted">No actions yet.</p>
@@ -80,7 +81,7 @@ export default function Dashboard() {
             </tbody>
           </table>
         )}
-      </div>
+      </div>}
     </>
   );
 }
