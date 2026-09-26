@@ -39,6 +39,10 @@ Checklist:
 - **Back up `DATA_DIR`** (`admins.json`, `audit.json`) regularly, e.g. a nightly copy. The audit log keeps the newest 50,000 entries.
 - Health check: `GET /api/health`.
 
+## Try the demo (no install)
+
+Open [`web/wildcraft-admin-demo.html`](web/wildcraft-admin-demo.html) in any browser (download it, then double-click). Everything runs inside the page with fake data that resets when you reload. Log in as `owner`, `admin` or `moderator`, password `demo`, to see what each role can do. Rebuild it with `npm run demo`.
+
 ## Features
 
 | Page | What it does |

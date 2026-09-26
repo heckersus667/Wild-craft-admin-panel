@@ -8,7 +8,19 @@ export class ApiError extends Error {
 let onUnauthorized = () => {};
 export const setUnauthorizedHandler = (fn) => (onUnauthorized = fn);
 
-export async function api(path, { method = 'GET', body } = {}) {
+const DEMO = import.meta.env.VITE_DEMO === '1';
+
+export async function api(path, opts = {}) {
+  if (DEMO) {
+    const { demoApi } = await import('./demo/fakeApi.js');
+    try {
+      return await demoApi(path, opts);
+    } catch (e) {
+      if (e.status === 401 && path !== '/auth/login' && path !== '/auth/me') onUnauthorized();
+      throw new ApiError(e.message, e.status);
+    }
+  }
+  const { method = 'GET', body } = opts;
   const res = await fetch('/api' + path, {
     method,
     credentials: 'same-origin',

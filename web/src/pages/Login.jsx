@@ -27,6 +27,9 @@ export default function Login() {
         <div className="login-logo">🐾</div>
         <h1>WildCraft Admin</h1>
         <p className="muted">Staff only. All actions are logged.</p>
+        {import.meta.env.VITE_DEMO === '1' && (
+          <div className="alert alert-warn">Demo: log in as <b>owner</b>, <b>admin</b> or <b>moderator</b> with password <b>demo</b>.</div>
+        )}
         {error && <div className="alert alert-error">{error}</div>}
         <label>
           Username
