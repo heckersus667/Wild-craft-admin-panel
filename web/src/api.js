@@ -12,7 +12,7 @@ const DEMO = import.meta.env.VITE_DEMO === '1';
 
 export async function api(path, opts = {}) {
   if (DEMO) {
-    const { demoApi } = await import('./demo/fakeApi.js');
+    const { demoApi } = await import('virtual:demo-api');
     try {
       return await demoApi(path, opts);
     } catch (e) {
